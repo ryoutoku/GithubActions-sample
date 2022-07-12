@@ -1,0 +1,39 @@
+name: docker build with cache
+
+on:
+  push:
+    tags:
+      - '**'
+
+env:
+  DOCKER_IMAGE: python
+  IMAGE_TAG: 3.10.5-slim-buster
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Cache a Docker image
+        id: cache-docker-image
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.DOCKER_IMAGE }}
+          key: ${{ runner.os }}-docker-${{ env.IMAGE_TAG }}
+
+      - name: Pull and save a Docker image
+        if: steps.cache-docker-image.outputs.cache-hit != 'true'
+        run: |
+          docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+          docker save ${DOCKER_IMAGE}:${IMAGE_TAG} -o ${DOCKER_IMAGE}
+
+      - name: Load Docker image
+        run: docker load -i ${DOCKER_IMAGE}
+      
+      - name: Build Docker image
+        if: startsWith( github.ref, 'refs/tags/' )
+        env:
+          REF: ${{ github.ref }}
+        run: docker build . --target production -t django:${REF##*/}
